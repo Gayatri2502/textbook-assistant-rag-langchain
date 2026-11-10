@@ -58,6 +58,6 @@ pip install -r requirements-dev.txt
 python -m pytest -q
 ```
 
-Tests cover local ingestion/replacement, unsupported questions, source citations, follow-ups, cloud orchestration with injected test doubles, API validation, and provider errors. Live OpenAI/Pinecone validation needs user credentials and an index; it is not part of offline tests.
+GitHub Actions runs the same tests on Python 3.12 for pushes and pull requests. Tests cover local ingestion/replacement, unsupported questions, source citations, follow-ups, cloud orchestration with injected test doubles, API validation, and provider errors. Live OpenAI/Pinecone validation needs user credentials and an index; it is not part of offline tests.
 
 This app binds to localhost by default. Add authentication, per-user namespaces, and request limits before exposing private documents publicly. Model and vector-store calls may incur charges; generated cloud answers require checking against their sources.
