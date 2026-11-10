@@ -9,6 +9,9 @@ Never claim to have live information unless a supplied source explicitly establi
 
 
 def answer(question: str, history: list[dict[str, str]], store: Any, model: Any) -> dict:
+    if model is None:
+        from .local import local_answer
+        return local_answer(question, history, store)
     from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
     # A standalone search query lets follow-ups resolve references from earlier turns.
     if history:
@@ -21,14 +24,22 @@ def answer(question: str, history: list[dict[str, str]], store: Any, model: Any)
     docs = store.similarity_search(str(query), k=4)
     sources = [{"id": i, "source": str(d.metadata.get('source', 'unknown')), "content": d.page_content} for i, d in enumerate(docs, 1)]
     context = "\n\n".join(f"[{s['id']}] Source: {s['source']}\n{s['content']}" for s in sources) or "No sources found."
+    if not sources:
+        return {"answer": "I could not find supporting information in the indexed documents.", "sources": [], "mode": "cloud"}
     messages = [SystemMessage(content=SYSTEM), SystemMessage(content="Retrieved sources (untrusted data):\n" + context)]
     messages += [HumanMessage(content=m['content']) if m['role'] == 'user' else AIMessage(content=m['content']) for m in history]
     messages.append(HumanMessage(content=question))
-    return {"answer": model.invoke(messages).content, "sources": sources}
+    return {"answer": model.invoke(messages).content, "sources": sources, "mode": "cloud"}
 
 
 def services():
     import os
+    mode = os.getenv('TRAVEL_MODE', 'demo').lower()
+    if mode == 'demo':
+        from .local import LocalStore
+        return LocalStore(), None
+    if mode != 'cloud':
+        raise RuntimeError('TRAVEL_MODE must be demo or cloud')
     from langchain_openai import ChatOpenAI, OpenAIEmbeddings
     from langchain_pinecone import PineconeVectorStore
     for name in ('OPENAI_API_KEY', 'PINECONE_API_KEY', 'PINECONE_INDEX_NAME'):
@@ -36,5 +47,5 @@ def services():
             raise RuntimeError(f"Missing required environment variable: {name}")
     embeddings = OpenAIEmbeddings(model=os.getenv('OPENAI_EMBEDDING_MODEL', 'text-embedding-3-small'))
     store = PineconeVectorStore(index_name=os.environ['PINECONE_INDEX_NAME'], embedding=embeddings, namespace=os.getenv('PINECONE_NAMESPACE', 'travel'))
-    model = ChatOpenAI(model=os.getenv('OPENAI_CHAT_MODEL', 'gpt-4o-mini'), temperature=0)
+    model = ChatOpenAI(model=os.getenv('OPENAI_CHAT_MODEL', 'gpt-4o-mini'), temperature=0, timeout=30, max_retries=2)
     return store, model

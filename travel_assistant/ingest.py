@@ -1,39 +1,40 @@
-"""Index local text, Markdown, and PDF files. Run: python -m travel_assistant.ingest documents"""
+"""Index text, Markdown, or PDF documents in demo or cloud mode."""
 import argparse
 import hashlib
+import json
+import os
 from pathlib import Path
 from dotenv import load_dotenv
-from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from .core import services
+from .local import LocalStore, read_documents
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('directory', type=Path)
-    args = parser.parse_args()
-    if not args.directory.is_dir():
-        parser.error('directory does not exist')
     load_dotenv()
-    docs = []
-    for path in sorted(args.directory.rglob('*')):
-        if not path.is_file() or path.suffix.lower() not in ('.txt', '.md', '.pdf'):
-            continue
-        if path.suffix.lower() == '.pdf':
-            from pypdf import PdfReader
-            text = '\n'.join(page.extract_text() or '' for page in PdfReader(path).pages)
-        else:
-            text = path.read_text(encoding='utf-8')
-        if text.strip():
-            docs.append(Document(page_content=text, metadata={'source': str(path.relative_to(args.directory))}))
-    if not docs:
-        parser.error('no non-empty supported documents found')
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('directory', type=Path)
+    parser.add_argument('--mode', choices=('demo', 'cloud'), default=os.getenv('TRAVEL_MODE', 'demo'))
+    args = parser.parse_args()
+    if not args.directory.is_dir(): parser.error('directory does not exist')
+    os.environ['TRAVEL_MODE'] = args.mode
+    docs = read_documents(args.directory)
+    if not docs: parser.error('no non-empty supported documents found')
     chunks = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=150).split_documents(docs)
-    # Stable IDs make repeated ingestion of unchanged chunks safe.
-    ids = [hashlib.sha256((d.metadata['source'] + '\0' + d.page_content).encode()).hexdigest() for d in chunks]
-    store, _ = services()
-    store.add_documents(chunks, ids=ids)
-    print(f'Indexed {len(chunks)} chunks from {len(docs)} documents.')
+    if args.mode == 'demo':
+        LocalStore().replace(chunks)
+    else:
+        ids = [hashlib.sha256((d.metadata['source'] + '\0' + d.page_content).encode()).hexdigest() for d in chunks]
+        store, _ = services()
+        # A per-index/namespace/directory manifest removes chunks superseded by this source directory.
+        scope = '|'.join((os.environ['PINECONE_INDEX_NAME'], os.getenv('PINECONE_NAMESPACE', 'travel'), str(args.directory.resolve())))
+        manifest = Path('.travel') / (hashlib.sha256(scope.encode()).hexdigest() + '.json')
+        old_ids = set(json.loads(manifest.read_text())) if manifest.exists() else set()
+        store.add_documents(chunks, ids=ids)
+        stale = old_ids - set(ids)
+        if stale: store.delete(ids=sorted(stale))
+        manifest.parent.mkdir(parents=True, exist_ok=True)
+        manifest.write_text(json.dumps(ids))
+    print(f'Indexed {len(chunks)} chunks from {len(docs)} documents in {args.mode} mode.')
 
-if __name__ == '__main__':
-    main()
+if __name__ == '__main__': main()
