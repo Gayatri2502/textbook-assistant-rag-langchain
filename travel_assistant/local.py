@@ -67,12 +67,15 @@ class LocalStore:
         return [docs[i] for _, i in sorted(scores, reverse=True)[:k]]
 
 
-def local_answer(question, history, store):
+def local_query(question, history):
     # Resolve simple follow-ups without pretending to run an LLM.
     query = question
     if history and re.search(r'\b(it|there|that|those|also|they)\b', question, re.I):
         query = ' '.join(m['content'] for m in history[-4:] if m['role'] == 'user') + ' ' + question
-    docs = store.similarity_search(query, k=3)
+    return query
+
+
+def local_result(query, docs):
     sources = [{'id': i, 'source': d.metadata.get('source', 'unknown'), 'content': d.page_content} for i, d in enumerate(docs, 1)]
     if not sources:
         return {'answer': 'I could not find supporting information in the current documents. Try a more specific question or index your own travel documents.', 'sources': [], 'mode': 'demo'}
@@ -84,3 +87,8 @@ def local_answer(question, history, store):
         selected = [line for _, line in ranked[:2] if query_words.intersection(tokens(line))]
         if selected: excerpts.append(' '.join(selected) + f" [{source['id']}]")
     return {'answer': 'From the indexed documents:\n\n' + '\n\n'.join(excerpts) + '\n\nDemo mode returns source excerpts. The bundled itinerary is fictional sample content.', 'sources': sources, 'mode': 'demo'}
+
+
+def local_answer(question, history, store):
+    query = local_query(question, history)
+    return local_result(query, store.similarity_search(query, k=3))
