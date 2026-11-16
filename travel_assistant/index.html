@@ -93,24 +93,221 @@ footer { margin-left: 198px; }
 .travel-hero .send { margin-top: 4px; }
 .travel-hero .status { color: #d0daf3; }
 @media(max-width:1080px) { .layout { grid-template-columns: minmax(0, 1fr); } }
-</style></head><body>
+
+body { font-size: 14px; }
+h1, .page-hero h1 { font-size: clamp(1.55rem, 2.7vw, 2.25rem); letter-spacing: -.028em; }
+h2 { font-size: 1.05rem; }
+h3 { font-size: .95rem; }
+.app-rail .brand { font-size: 16px; }
+.page-hero { padding: clamp(18px, 3vw, 32px); min-height: 0; margin-bottom: 16px; }
+.page-hero p { font-size: .88rem; max-width: 58ch; }
+main.shell, main.wrap { padding-top: clamp(14px, 2vw, 26px); }
+.panel, form, .preview { padding: 16px; }
+textarea, input, select { font-size: .9rem; }
+button, .primary, .secondary { font-size: .875rem; }
+.guide { margin: 0 0 16px; display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
+.guide div { padding: 11px 13px; border: 1px solid var(--border); border-radius: 8px; background: #101a2e; }
+.guide strong { display: block; margin-bottom: 3px; font-size: .85rem; }
+.guide p { margin: 0; font-size: .8rem; line-height: 1.5; }
+.tool-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.tool-row button { min-height: 36px; padding: 6px 10px; background: #182544; color: #eef2ff; border: 1px solid #3b4b70; border-radius: 6px; }
+.inline-status { min-height: 1.3em; margin: .35em 0; font-size: .8rem; color: #cfdaff; }
+.skip-link { position: fixed; top: -60px; left: 10px; z-index: 10; padding: 10px; background: #202f65; color: white; }
+.skip-link:focus { top: 10px; }
+@media(max-width: 590px) {
+  .guide { grid-template-columns: 1fr; gap: 6px; }
+  .guide div { padding: 8px 10px; }
+  textarea, input, select { font-size: 16px; }
+}
+
+.travel-hero #form { padding: 0; margin-top: 15px; }
+.travel-hero #question { resize: vertical; min-height: 48px; }
+.travel-hero .send { gap: 8px; }
+.chat { min-height: 120px; max-height: 360px; }
+.chat:empty { min-height: 0; }
+.notes { padding: 10px 0; margin-top: 12px; border-top: 1px solid var(--border); }
+.notes summary { cursor: pointer; padding-block: 7px; }
+.notes textarea { margin: 5px 0 8px; }
+#chat-error { color: #ffd3c6; }
+
+</style></head><body><a class="skip-link" href="#form">Skip to workspace</a>
 <header class="app-rail"><div class="brand"><span class="brand-symbol" aria-hidden="true">➤</span> TravelAI</div><nav aria-label="Workspace"><a href="#travel-home">Home</a><a href="#travel-chat">Travel chat</a><a href="#travel-documents">Documents</a><a href="#travel-weather">Weather</a></nav><span class="badge" id="mode" role="status">Loading mode…</span></header>
 <main class="shell" id="travel-home">
   <section class="page-hero travel-hero" aria-labelledby="travel-title">
     <h1 id="travel-title">AI Travel Assistant</h1>
-    <p>Plan from itineraries and booking documents. Check current weather for your destination.</p>
-    <form id="form"><label for="question">Ask your travel documents</label><textarea id="question" required maxlength="4000" placeholder="What does my itinerary say about day two?"></textarea><div class="send"><span id="chat-status" class="status" role="status"></span><button class="primary" id="ask">Send question ↗</button></div></form>
+    <p>Find details in travel documents or your own trip notes, and check current weather for a destination.</p>
+    <form id="form"><label for="question">Ask your travel documents</label><textarea id="question" required maxlength="4000" placeholder="What does my itinerary say about day two?"></textarea><div id="chat-error" class="inline-status" role="alert" hidden></div><div class="send"><span id="chat-status" class="status" role="status"></span><button class="primary" id="ask">Send question ↗</button></div></form>
   </section>
-<div class="layout"><section class="panel" id="travel-chat" aria-label="Travel conversation"><div style="display:flex;justify-content:space-between;align-items:center"><h2>Travel chat</h2><button id="clear" type="button">New chat</button></div><div id="chat" class="chat" aria-live="polite"><div class="empty" id="welcome"><div class="icon" aria-hidden="true">↗</div><h2>Ask about your travel documents</h2><p>Try a question about the bundled Kyoto itinerary, packing checklist, or fictional booking policy.</p></div></div><div class="suggestions"><button type="button" data-prompt="What is the sample Kyoto itinerary?">Kyoto itinerary</button><button type="button" data-prompt="What should I pack for rain?">Pack for rain</button><button type="button" data-prompt="What is the cancellation policy?">Cancellation policy</button></div>
+<section class="guide" aria-label="How it works"><div><strong>Ask about a document</strong><p>The local demo finds relevant passages in three fictional travel files. Open a citation to read the full excerpt.</p></div><div><strong>Search your own notes</strong><p>Paste an itinerary or booking notes below. In My notes mode, search runs in this tab and the notes stay here.</p></div><div><strong>Check a destination</strong><p>The weather tool fetches current conditions from Open-Meteo. Live flight, hotel and booking data are outside this workspace.</p></div></section>
+<div class="layout"><section class="panel" id="travel-chat" aria-label="Travel conversation"><div style="display:flex;justify-content:space-between;align-items:center"><h2>Travel chat</h2><button id="clear" type="button">New chat</button></div><div id="chat" class="chat" role="log" aria-live="polite" tabindex="-1"><div class="empty" id="welcome"><div class="icon" aria-hidden="true">↗</div><h2>Ask about your travel documents</h2><p>Try a question about the bundled Kyoto itinerary, packing checklist, or fictional booking policy.</p></div></div><div class="suggestions"><button type="button" data-prompt="What is the sample Kyoto itinerary?">Kyoto itinerary</button><button type="button" data-prompt="What should I pack for rain?">Pack for rain</button><button type="button" data-prompt="What is the cancellation policy?">Cancellation policy</button></div>
 </section>
-<aside id="travel-documents"><section class="panel"><h2>Reference documents</h2><p class="small" id="source-description">Loading document status…</p><ul id="documents"></ul><hr class="divider"><h2 id="travel-weather">Destination weather</h2><form id="weather"><label for="location">City or destination</label><input id="location" required minlength="2" maxlength="100" placeholder="Kyoto, Japan"><button class="primary" style="margin-top:10px;width:100%">Check current conditions</button></form><div id="weather-result" aria-live="polite"></div><p class="small">Modelled conditions from <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a>.</p></section><p class="small" style="padding:0 8px">Travel requirements and prices change. Check official sources before booking or departing.</p></aside></div>
+<aside id="travel-documents"><section class="panel"><h2>Reference documents</h2><p class="small" id="source-description">Loading document status…</p><ul id="documents"></ul>
+<details class="notes" id="trip-notes">
+  <summary>Use my trip notes</summary>
+  <label for="notes-text">Paste plain text (up to 12,000 characters)</label>
+  <textarea id="notes-text" maxlength="12000" rows="5" placeholder="Hotel check-in starts at 3 pm. The airport shuttle leaves at 8 am."></textarea>
+  <div class="tool-row"><button id="use-notes" type="button">Search my notes</button><button id="use-docs" type="button">Use indexed documents</button></div>
+  <p id="notes-status" class="inline-status" role="status">Searching indexed documents.</p>
+</details><hr class="divider"><h2 id="travel-weather">Destination weather</h2><form id="weather"><label for="location">City or destination</label><input id="location" required minlength="2" maxlength="100" placeholder="Kyoto, Japan"><div class="tool-row"><button type="button" data-city="Kyoto">Kyoto</button><button type="button" data-city="Paris">Paris</button><button type="button" data-city="Singapore">Singapore</button></div><button class="primary" style="margin-top:10px;width:100%">Check current conditions</button></form><div id="weather-result" aria-live="polite"></div><p class="small">Modelled conditions from <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a>.</p></section><p class="small" style="padding:0 8px">Travel requirements and prices change. Check official sources before booking or departing.</p></aside></div>
 </main><footer>TravelAI · Document-grounded travel planning · <a href="/docs">API documentation</a></footer>
 <script>
-const history=[];const chat=document.querySelector('#chat');const ask=document.querySelector('#ask');
-function line(role,text){document.querySelector('#welcome')?.remove();const el=document.createElement('div');el.className='message '+role;const label=document.createElement('strong');label.textContent=role==='user'?'You':'Wayfarer';el.append(label,document.createTextNode(text));chat.append(el);chat.scrollTop=chat.scrollHeight;return el}
-function sources(list){if(!list.length)return;const box=document.createElement('div');list.forEach(s=>{const d=document.createElement('details');d.className='source';const summary=document.createElement('summary');summary.textContent='['+s.id+'] '+s.source;const p=document.createElement('p');p.textContent=s.content;d.append(summary,p);box.append(d)});chat.append(box);chat.scrollTop=chat.scrollHeight}
-async function submit(){const input=document.querySelector('#question');const question=input.value.trim();if(!question||ask.disabled)return;input.value='';line('user',question);ask.disabled=true;document.querySelector('#chat-status').textContent='Reading your documents…';try{const r=await fetch('/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question,history:history.slice(-20)})});const d=await r.json();if(!r.ok)throw Error(typeof d.detail==='string'?d.detail:'Please check your input.');line('assistant',d.answer);sources(d.sources);history.push({role:'user',content:question},{role:'assistant',content:d.answer})}catch(err){line('assistant','Unable to answer: '+err.message)}finally{ask.disabled=false;document.querySelector('#chat-status').textContent='';input.focus()}}
-document.querySelector('#form').addEventListener('submit',e=>{e.preventDefault();submit()});document.querySelectorAll('[data-prompt]').forEach(b=>b.addEventListener('click',()=>{document.querySelector('#question').value=b.dataset.prompt;submit()}));document.querySelector('#clear').addEventListener('click',()=>{history.length=0;chat.replaceChildren();line('assistant','A fresh start. Ask a question about your documents.');document.querySelector('#question').focus()});
-document.querySelector('#weather').addEventListener('submit',async e=>{e.preventDefault();const out=document.querySelector('#weather-result');const b=e.submitter;b.disabled=true;out.textContent='Checking weather…';try{const r=await fetch('/weather?location='+encodeURIComponent(document.querySelector('#location').value.trim()));const d=await r.json();if(!r.ok)throw Error(d.detail||'Request failed');out.textContent=d.location+'\n'+d.current.temperature_2m+' '+d.units.temperature_2m+' · Wind '+d.current.wind_speed_10m+' '+d.units.wind_speed_10m+'\nAs of '+d.current.time+' ('+d.timezone+')'}catch(err){out.textContent=err.message}finally{b.disabled=false}});
-fetch('/status').then(r=>r.json()).then(d=>{document.querySelector('#mode').textContent=d.mode==='demo'?'Demo · Local documents':'Cloud · OpenAI + Pinecone';document.querySelector('#source-description').textContent=d.mode==='demo'?'Demo answers quote matching document excerpts. Bundled documents are fictional samples.':'Answers use your Pinecone document namespace.';const list=document.querySelector('#documents');(d.documents||['Pinecone document index']).forEach(name=>{const item=document.createElement('li');item.textContent=name;list.append(item)})}).catch(()=>{document.querySelector('#mode').textContent='Status unavailable'});
+const $ = id => document.getElementById(id);
+const chat = $('chat');
+const input = $('question');
+const history = [];
+const welcome = $('welcome').cloneNode(true);
+let useNotes = false;
+
+async function request(url, options = {}, timeout = 25000) {
+  const response = await fetch(url, { ...options, signal: AbortSignal.timeout(timeout) });
+  const body = await response.json();
+  if (!response.ok) throw new Error(typeof body.detail === 'string' ? body.detail : 'Check your input and try again.');
+  return body;
+}
+
+function line(role, text) {
+  $('welcome')?.remove();
+  const message = document.createElement('div');
+  message.className = 'message ' + role;
+  const label = document.createElement('strong');
+  label.textContent = role === 'user' ? 'You' : useNotes ? 'My notes' : 'TravelAI';
+  message.append(label, document.createTextNode(text));
+  chat.append(message);
+  return message;
+}
+
+function showSources(items) {
+  for (const source of items) {
+    const details = document.createElement('details');
+    details.className = 'source';
+    const summary = document.createElement('summary');
+    summary.textContent = '[' + source.id + '] ' + source.source;
+    const excerpt = document.createElement('p');
+    excerpt.textContent = source.content;
+    details.append(summary, excerpt);
+    chat.append(details);
+  }
+}
+
+function searchNotes(question) {
+  const stop = new Set('the are was can how what when where which this that and for with from about should does will would have you your our tell find please my'.split(' '));
+  const words = text => new Set((text.toLowerCase().match(/[\p{L}\p{N}]+/gu) || []).filter(word => word.length > 2 && !stop.has(word)));
+  const query = words(question);
+  const passages = $('notes-text').value.trim().split(/\n+|(?<=[.!?])\s+(?=\p{Lu})/u);
+  const matches = passages
+    .map(text => ({text: text.trim(), score: [...words(text)].filter(word => query.has(word)).length}))
+    .filter(passage => passage.score > 0)
+    .sort((a,b) => b.score - a.score)
+    .slice(0, 3);
+  return {
+    answer: matches.length ? matches.map((entry, i) => entry.text + ' [' + (i + 1) + ']').join('\n\n')
+      : 'No matching passage in your trip notes. Try a specific term that appears in the notes, such as the hotel name or check-in.',
+    sources: matches.map((entry, i) => ({ id: i + 1, source: 'My trip notes', content: entry.text }))
+  };
+}
+
+function setBusy(busy) {
+  for (const button of [$('ask'), $('clear'), $('use-notes'), $('use-docs'), ...document.querySelectorAll('[data-prompt]')]) button.disabled = busy;
+  chat.setAttribute('aria-busy', String(busy));
+}
+
+async function submit() {
+  const question = input.value.trim();
+  if (!question || $('ask').disabled) return;
+  $('chat-error').hidden = true;
+  $('chat-status').textContent = useNotes ? 'Searching your notes…' : 'Searching indexed documents…';
+  setBusy(true);
+  try {
+    if (useNotes && !$('notes-text').value.trim()) throw new Error('Paste some trip notes first, or switch to indexed documents.');
+    const data = useNotes ? searchNotes(question) : await request('/chat', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({question, history: history.slice(-20)})
+    });
+    line('user', question);
+    const answer = line('assistant', data.answer);
+    showSources(data.sources);
+    if (!useNotes) history.push({role:'user',content:question}, {role:'assistant', content:data.answer.slice(0,10000)});
+    if (input.value.trim() === question) input.value = '';
+    chat.focus({preventScroll:true});
+    answer.scrollIntoView({block:'nearest'});
+  } catch (error) {
+    $('chat-error').textContent = error.name === 'TimeoutError'
+      ? 'The request timed out. Your question is still here so you can retry.'
+      : 'Could not answer. ' + error.message;
+    $('chat-error').hidden = false;
+  } finally {
+    setBusy(false);
+    $('chat-status').textContent = '';
+  }
+}
+
+$('form').addEventListener('submit', event => { event.preventDefault(); submit(); });
+input.addEventListener('keydown', event => {
+  if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); submit(); }
+});
+document.querySelectorAll('[data-prompt]').forEach(button => button.addEventListener('click', () => {
+  input.value = button.dataset.prompt;
+  submit();
+}));
+$('clear').addEventListener('click', () => {
+  history.length = 0;
+  chat.replaceChildren(welcome.cloneNode(true));
+  $('chat-error').hidden = true;
+  input.focus();
+});
+function selectNotes(enabled) {
+  if (enabled && !$('notes-text').value.trim()) {
+    $('notes-status').textContent = 'Paste itinerary or booking notes before switching.';
+    return;
+  }
+  useNotes = enabled;
+  history.length = 0;
+  chat.replaceChildren(welcome.cloneNode(true));
+  $('notes-status').textContent = enabled ? 'Searching my trip notes in this tab.' : 'Searching indexed documents.';
+  $('question').labels[0].textContent = enabled ? 'Ask about my trip notes' : 'Ask your travel documents';
+  input.focus();
+}
+$('use-notes').onclick = () => selectNotes(true);
+$('use-docs').onclick = () => selectNotes(false);
+document.querySelectorAll('[data-city]').forEach(button => button.onclick = () => {
+  $('location').value = button.dataset.city;
+  $('weather').requestSubmit();
+});
+$('weather').addEventListener('submit', async event => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const location = $('location').value.trim();
+  if (location.length < 2) return;
+  if (form.dataset.busy === 'true') return;
+  form.dataset.busy = 'true';
+  const buttons = [...form.querySelectorAll('button')];
+  buttons.forEach(button => button.disabled = true);
+  const out = $('weather-result');
+  out.textContent = 'Checking weather…';
+  try {
+    const data = await request('/weather?location=' + encodeURIComponent(location), {}, 18000);
+    out.textContent = data.location + '\n' + data.current.temperature_2m + ' ' + data.units.temperature_2m
+      + ' · Wind ' + data.current.wind_speed_10m + ' ' + data.units.wind_speed_10m
+      + '\nAs of ' + data.current.time + ' (' + data.timezone + ')';
+  } catch (error) {
+    out.textContent = error.name === 'TimeoutError' ? 'Weather lookup timed out. Try again.' : error.message;
+  } finally {
+    delete form.dataset.busy;
+    buttons.forEach(button => button.disabled = false);
+  }
+});
+request('/status').then(data => {
+  $('mode').textContent = data.mode === 'demo' ? 'Local document search' : 'Cloud · OpenAI + Pinecone';
+  $('source-description').textContent = data.mode === 'demo'
+    ? 'Local answers quote matching passages. The bundled files are fictional samples.'
+    : 'Answers cite passages from your Pinecone document index.';
+  for (const name of data.documents || ['Pinecone document index']) {
+    const li = document.createElement('li');
+    li.textContent = name;
+    $('documents').append(li);
+  }
+}).catch(() => {
+  $('mode').textContent = 'Document status unavailable';
+  $('source-description').textContent = 'Reload to retry, or use My trip notes to search in this tab.';
+});
 </script></body></html>
