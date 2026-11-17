@@ -25,7 +25,7 @@ HOSTED = os.getenv("VERCEL") == "1"
 storage = TemporaryDirectory(prefix="textbook-rag-")
 books = OrderedDict()
 lock = Lock()
-MAX_BYTES = 150 * 1024 * 1024
+MAX_BYTES = 500 * 1024 * 1024
 MAX_PAGES = 5000
 MAX_CHUNKS = 100_000
 

@@ -6,7 +6,7 @@ const search = $('search');
 const searchButton = search.querySelector('button');
 let book;
 let result;
-let uploadLimit = 150 * 1024 * 1024;
+let uploadLimit = 500 * 1024 * 1024;
 
 function selectStep() {
   const requested = new URLSearchParams(location.search).get('step');
@@ -155,7 +155,7 @@ upload.addEventListener('submit', async event => {
   const file = data.get('file');
   if (file.size > uploadLimit) {
     $('index-status').textContent = '“' + file.name + '” exceeds the '
-      + (uploadLimit === 4_000_000 ? '4 MB hosted' : '150 MB')
+      + (uploadLimit === 4_000_000 ? '4 MB hosted' : '500 MB')
       + ' upload limit. Choose a smaller PDF or split it into chapters.';
     return;
   }

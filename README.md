@@ -4,7 +4,7 @@ Upload a text-based PDF, inspect its chunks and vectors, search for a study topi
 
 Run `python -m pip install -r requirements.txt` and `./run.sh`, then open http://127.0.0.1:8001/.
 
-The index runs locally and combines TF-IDF with latent semantic analysis when the document has sufficient vocabulary and passages. It returns verbatim excerpts from the uploaded book. PDF page numbers can differ from printed page numbers. Scanned pages require OCR before upload. The limits are 150 MB, 5,000 pages, and 100,000 chunks. The server keeps up to eight recent indexes until it restarts.
+The index runs locally and combines TF-IDF with latent semantic analysis when the document has sufficient vocabulary and passages. It returns verbatim excerpts from the uploaded book. PDF page numbers can differ from printed page numbers. Scanned pages require OCR before upload. The limits are 500 MB, 5,000 pages, and 100,000 chunks. The server keeps up to eight recent indexes until it restarts.
 
 In Context Generation, **Exact textbook sentences** works without a model. **Generated explanation** uses a local Ollama model. Start Ollama with `nemotron-3-nano:4b` installed and launch the app with `./run.sh`. Click a citation to highlight its exact quote and open the original PDF page.
 
