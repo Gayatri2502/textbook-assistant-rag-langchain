@@ -6,6 +6,7 @@ const search = $('search');
 const searchButton = search.querySelector('button');
 let book;
 let result;
+let uploadLimit = 150 * 1024 * 1024;
 
 function selectStep() {
   const requested = new URLSearchParams(location.search).get('step');
@@ -28,14 +29,27 @@ window.addEventListener('popstate', selectStep);
 selectStep();
 
 async function request(url, options) {
-  const response = await fetch(url, options);
-  const data = await response.json();
-  if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Check the form and try again.');
+  let response;
+  try {
+    response = await fetch(url, options);
+  } catch {
+    throw new Error('Could not connect to the server. Check your connection and retry.');
+  }
+  if (response.status === 413) {
+    throw new Error('This PDF exceeds the upload limit. Choose a smaller PDF or split it into chapters.');
+  }
+  const contentType = response.headers.get('content-type') || '';
+  const data = contentType.includes('json') ? await response.json().catch(() => null) : null;
+  if (typeof data?.detail === 'string' && !response.ok) throw new Error(data.detail);
+  if (response.status === 504) throw new Error('The server timed out. Try a shorter PDF or retry the request.');
+  if (!response.ok) throw new Error('The server could not complete the request (HTTP ' + response.status + ').');
+  if (data === null) throw new Error('The server returned an unreadable response. Please retry.');
   return data;
 }
 
 request('/capabilities').then(({hosted}) => {
   if (!hosted) return;
+  uploadLimit = 4_000_000;
   $('upload-limit').textContent = 'Hosted preview · Text PDFs up to 4 MB · Indexes are temporary';
   upload.elements.hybrid.checked = false;
   upload.elements.hybrid.disabled = true;
@@ -138,11 +152,18 @@ function resetSearch() {
 upload.addEventListener('submit', async event => {
   event.preventDefault();
   const data = new FormData(upload);
+  const file = data.get('file');
+  if (file.size > uploadLimit) {
+    $('index-status').textContent = '“' + file.name + '” exceeds the '
+      + (uploadLimit === 4_000_000 ? '4 MB hosted' : '150 MB')
+      + ' upload limit. Choose a smaller PDF or split it into chapters.';
+    return;
+  }
   if (Number(data.get('overlap')) >= Number(data.get('size'))) {
     $('index-status').textContent = 'Overlap must be smaller than chunk size.';
     return;
   }
-  const controls = [...upload.elements];
+  const controls = [...upload.elements].filter(control => !control.disabled);
   controls.forEach(control => control.disabled = true);
   searchButton.disabled = true;
   $('generate').disabled = true;
@@ -168,7 +189,7 @@ upload.addEventListener('submit', async event => {
       + (book.dimensions > chunk.vector.length ? ', …' : '') + ']', 'embedding-plot-' + chunk.id)));
     drawPlot($('embedding-plot'), book.preview);
   } catch (error) {
-    $('index-status').textContent = error.message;
+    $('index-status').textContent = error.message + (book ? ' Still using “' + book.name + '”.' : '');
   } finally {
     controls.forEach(control => control.disabled = false);
     searchButton.disabled = !book;
@@ -186,7 +207,7 @@ search.addEventListener('submit', async event => {
     return;
   }
   resetSearch();
-  const locked = [...search.elements, ...upload.elements];
+  const locked = [...search.elements, ...upload.elements].filter(control => !control.disabled);
   locked.forEach(control => control.disabled = true);
   $('search-status').textContent = 'Ranking passages…';
   try {
@@ -230,7 +251,8 @@ search.addEventListener('submit', async event => {
 
 $('generate').onclick = async () => {
   if (!result?.matches.length) return;
-  const controls = [...search.elements, ...upload.elements, $('generate'), $('answer-mode'), $('temperature'), $('max-tokens')];
+  const controls = [...search.elements, ...upload.elements, $('generate'), $('answer-mode'), $('temperature'), $('max-tokens')]
+    .filter(control => !control.disabled);
   if (!['temperature', 'max-tokens'].every(id => $(id).value !== '' && $(id).reportValidity())) return;
   controls.forEach(control => control.disabled = true);
   $('generate').textContent = 'Generating…';
