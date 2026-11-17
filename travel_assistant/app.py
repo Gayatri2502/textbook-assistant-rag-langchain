@@ -6,6 +6,7 @@ from tempfile import TemporaryDirectory
 from threading import Lock
 from uuid import uuid4
 from typing import Literal
+from . import blob_upload
 from .answers import DEFAULT_ANSWER_TEMPERATURE, MAX_ANSWER_TOKENS, answer_question
 from .retrieval import MODEL, embed, hybrid_scores
 import re
@@ -180,15 +181,33 @@ def health():
     return {"status": "ok"}
 
 
+@app.get("/blob-client.js")
+def blob_client():
+    return FileResponse(assets / "blob-client.js", media_type="text/javascript")
+
+
+@app.post("/upload-grant")
+def upload_grant():
+    if not HOSTED or not blob_upload.token():
+        raise HTTPException(503, "Large uploads are unavailable.")
+    return blob_upload.new_upload(MAX_BYTES)
+
+
 @app.get("/capabilities")
 def capabilities():
-    return {"hosted": HOSTED}
+    return {"hosted": HOSTED, "large_uploads": HOSTED and bool(blob_upload.token())}
 
 
 @app.post("/books")
-def upload(file: UploadFile = File(...), size: int = Form(700, ge=150, le=3500),
+def upload(file: UploadFile | None = File(None), size: int = Form(700, ge=150, le=3500),
            overlap: int = Form(80, ge=0, le=500), strategy: str = Form("recursive"),
-           hybrid: bool = Form(False), separators: str = Form(r"\n\n|\n| ")):
+           hybrid: bool = Form(False), blob_path: str | None = Form(None),
+           filename: str | None = Form(None), separators: str = Form(r"\n\n|\n| ")):
+    if (file is None) == (blob_path is None):
+        raise HTTPException(422, "Choose one PDF to upload.")
+    if blob_path and (not HOSTED or not blob_upload.token()
+                      or not re.fullmatch(r"textbooks/[0-9a-f]{32}\.pdf", blob_path)):
+        raise HTTPException(422, "Invalid private PDF upload.")
     if HOSTED and hybrid:
         raise HTTPException(422, "Hybrid search requires the local Ollama installation.")
     if overlap >= size or strategy not in {"recursive", "fixed", "parent-child"}:
@@ -198,15 +217,16 @@ def upload(file: UploadFile = File(...), size: int = Form(700, ge=150, le=3500),
     path = Path(storage.name) / f"{book_id}.pdf"
     try:
         total = 0
-        with path.open("wb") as output:
-            for block in iter(lambda: file.file.read(1024 * 1024), b""):
+        source = blob_upload.open_pdf(blob_path) if blob_path else file.file
+        with source, path.open("wb") as output:
+            for block in iter(lambda: source.read(1024 * 1024), b""):
                 if total == 0 and b"%PDF-" not in block[:1024]:
                     raise ValueError("Upload a valid PDF document.")
                 total += len(block)
-                if total > (4_000_000 if HOSTED else MAX_BYTES):
+                if total > (4_000_000 if HOSTED and not blob_path else MAX_BYTES):
                     raise ValueError("The PDF exceeds the upload limit.")
                 output.write(block)
-        book = Book(path, Path(file.filename or "Textbook.pdf").name, size, overlap, strategy, boundaries, hybrid)
+        book = Book(path, Path((filename if blob_path else file.filename) or "Textbook.pdf").name, size, overlap, strategy, boundaries, hybrid)
     except (OSError, KeyError) as error:
         path.unlink(missing_ok=True)
         if hybrid:
@@ -216,6 +236,9 @@ def upload(file: UploadFile = File(...), size: int = Form(700, ge=150, le=3500),
         path.unlink(missing_ok=True)
         message = str(error) if isinstance(error, ValueError) else "The PDF could not be read."
         raise HTTPException(422, message) from error
+
+    if blob_path:
+        path.unlink()
 
     with lock:
         books[book_id] = book
@@ -231,7 +254,10 @@ def upload(file: UploadFile = File(...), size: int = Form(700, ge=150, le=3500),
 
 @app.get("/books/{book_id}/pdf")
 def pdf(book_id: str):
-    return FileResponse(get_book(book_id).path, media_type="application/pdf")
+    book = get_book(book_id)
+    if not book.path.exists():
+        raise HTTPException(404, "Open the original large PDF in the tab that uploaded it.")
+    return FileResponse(book.path, media_type="application/pdf")
 
 
 @app.post("/books/{book_id}/search")

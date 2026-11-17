@@ -6,6 +6,7 @@ const search = $('search');
 const searchButton = search.querySelector('button');
 let book;
 let result;
+let largeUploads = false;
 let uploadLimit = 500 * 1024 * 1024;
 
 function selectStep() {
@@ -47,10 +48,11 @@ async function request(url, options) {
   return data;
 }
 
-request('/capabilities').then(({hosted}) => {
+request('/capabilities').then(({hosted, large_uploads}) => {
   if (!hosted) return;
-  uploadLimit = 4_000_000;
-  $('upload-limit').textContent = 'Hosted preview · Text PDFs up to 4 MB · Indexes are temporary';
+  largeUploads = large_uploads;
+  if (!largeUploads) uploadLimit = 4_000_000;
+  $('upload-limit').textContent = 'Text PDFs up to ' + (largeUploads ? '500 MB' : '4 MB') + ' · Indexes are temporary';
   upload.elements.hybrid.checked = false;
   upload.elements.hybrid.disabled = true;
   $('answer-mode').value = 'extractive';
@@ -71,7 +73,7 @@ function sourceCard(chunk, text, meta, id) {
   if (id) card.id = id;
   const details = element('small', 'Chunk ' + chunk.id + ' · ' + meta + ' · ');
   const link = element('a', 'Open PDF page ' + chunk.page);
-  link.href = '/books/' + book.id + '/pdf#page=' + chunk.page;
+  link.href = (book.pdfUrl || '/books/' + book.id + '/pdf') + '#page=' + chunk.page;
   link.target = '_blank';
   link.rel = 'noopener';
   details.append(link);
@@ -169,7 +171,25 @@ upload.addEventListener('submit', async event => {
   $('generate').disabled = true;
   $('index-status').textContent = 'Uploading and indexing. Large books may take a few minutes.';
   try {
-    book = await request('/books', {method:'POST', body:data});
+    const direct = largeUploads && file.size > 4_000_000;
+    if (direct) {
+      const {put} = await import('/blob-client.js');
+      const grant = await request('/upload-grant', {method:'POST'});
+      await put(grant.path, file, {
+        token: grant.token, access:'private', multipart:true, contentType:'application/pdf',
+        onUploadProgress: ({percentage}) => {
+          $('index-status').textContent = 'Uploading PDF · ' + Math.round(percentage) + '%';
+        },
+      });
+      data.delete('file');
+      data.set('filename', file.name);
+      data.set('blob_path', grant.path);
+      $('index-status').textContent = 'Upload complete. Indexing PDF…';
+    }
+    const nextBook = await request('/books', {method:'POST', body:data});
+    if (book?.pdfUrl) URL.revokeObjectURL(book.pdfUrl);
+    if (direct) nextBook.pdfUrl = URL.createObjectURL(file);
+    book = nextBook;
     resetSearch();
     const coverage = book.textPages + ' of ' + book.pages + ' PDF pages contained selectable text.';
     $('index-status').textContent = 'Index ready. ' + coverage;
@@ -299,7 +319,7 @@ $('generate').onclick = async () => {
       const excerpt = element('p', claim.excerpt.slice(0, offset), 'quote');
       excerpt.append(element('mark', claim.quote), claim.excerpt.slice(offset + claim.quote.length));
       const link = element('a', 'Open original PDF page ' + claim.page);
-      link.href = '/books/' + book.id + '/pdf#page=' + claim.page;
+      link.href = (book.pdfUrl || '/books/' + book.id + '/pdf') + '#page=' + claim.page;
       link.target = '_blank';
       link.rel = 'noopener';
       evidence.append(element('h3', '[' + (index + 1) + '] PDF page ' + claim.page), excerpt, link);

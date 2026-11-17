@@ -11,3 +11,8 @@ In Context Generation, **Exact textbook sentences** works without a model. **Gen
 ### Hybrid retrieval
 
 Run `ollama pull all-minilm` once. Select **Hybrid search with local embeddings** when indexing a PDF. The app embeds passages in batches on the local Ollama server, then combines keyword and embedding rankings. Fusion scores express rank agreement and are not probabilities. Leave the option unchecked to index without Ollama. Hybrid indexing takes longer on large PDFs and requires re-uploading books indexed with the earlier search mode.
+
+On Vercel, PDFs above 4 MB upload directly to the project's private Blob store when
+`BLOB_READ_WRITE_TOKEN` is configured. The app issues short-lived, single-path upload
+grants with a 500 MB limit. The uploaded object expires after one day. Large PDF page
+links open the original file in the uploading tab.
