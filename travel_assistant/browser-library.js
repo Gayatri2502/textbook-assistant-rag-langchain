@@ -10,7 +10,7 @@ async function loadModels(progress) {
     encoder = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2', {dtype:'q8', device:'wasm'});
   }
   if (!retrieveChain) {
-    const {RunnableLambda} = await import('https://esm.sh/@langchain/core@0.3.79/runnables');
+    const {RunnableLambda} = await import('/langchain-browser.js');
     retrieveChain = RunnableLambda.from(async ({question, limit}) => {
       const tensor = await encoder(question, {pooling:'mean', normalize:true});
       const vector = tensor.tolist()[0];

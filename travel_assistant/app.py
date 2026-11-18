@@ -188,6 +188,11 @@ def health():
     return {"status": "ok"}
 
 
+@app.get("/langchain-browser.js")
+def langchain_browser():
+    return FileResponse(assets / "langchain-browser.js", media_type="text/javascript")
+
+
 @app.get("/browser-library.js")
 def browser_library():
     return FileResponse(assets / "browser-library.js", media_type="text/javascript")
