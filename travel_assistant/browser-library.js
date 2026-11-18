@@ -1,6 +1,27 @@
 let chunks = [];
-const words = text => text.toLowerCase().match(/[a-z]{3,}/g) || [];
-const stop = new Set('the and for are with what does how why this that from into have which'.split(' '));
+let encoder;
+let retrieveChain;
+let dimensions = 0;
+async function loadModels(progress) {
+  if (!encoder) {
+    progress('Loading the embedding model (downloaded once)…', '');
+    const {pipeline, env} = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1');
+    env.allowLocalModels = false;
+    encoder = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2', {dtype:'q8', device:'wasm'});
+  }
+  if (!retrieveChain) {
+    const {RunnableLambda} = await import('https://esm.sh/@langchain/core@0.3.79/runnables');
+    retrieveChain = RunnableLambda.from(async ({question, limit}) => {
+      const tensor = await encoder(question, {pooling:'mean', normalize:true});
+      const vector = tensor.tolist()[0];
+      const matches = chunks.map(chunk => ({
+        ...chunk, score:chunk.fullVector.reduce((sum,value,i)=>sum+value*vector[i],0),
+      })).sort((a,b)=>b.score-a.score).slice(0,limit).map(({fullVector,...chunk})=>chunk);
+      return {matches, point:vector.slice(0,2), searched:chunks.length,
+        score_type:'Cosine similarity', query_vector:vector.slice(0,8), dimensions};
+    });
+  }
+}
 export async function index(file, settings, progress) {
   const pdfjs = await import('https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs');
   pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs';
@@ -38,19 +59,30 @@ export async function index(file, settings, progress) {
       await new Promise(resolve => setTimeout(resolve, 0));
     }
     if (!next.length) throw Error('No selectable text found. OCR is required for scanned books.');
+    await loadModels(progress);
+    for (let start = 0; start < next.length; start += 16) {
+      const batch = next.slice(start, start + 16);
+      const tensor = await encoder(batch.map(chunk => chunk.text), {pooling:'mean', normalize:true});
+      const vectors = tensor.tolist();
+      batch.forEach((chunk, i) => {
+        chunk.fullVector = vectors[i];
+        chunk.vector = vectors[i].slice(0,8);
+        chunk.x = vectors[i][0];
+        chunk.y = vectors[i][1];
+      });
+      progress('Embedding chunks ' + Math.min(start + 16, next.length) + ' / ' + next.length, '');
+      await new Promise(resolve => setTimeout(resolve,0));
+    }
+    dimensions = next[0].fullVector.length;
     chunks = next;
     return {id:'browser',name:file.name,pages:pdf.numPages,textPages,chunkCount:chunks.length,
-      model:'Browser keyword search',dimensions:0,preview:chunks.filter((_,i)=>i % Math.ceil(chunks.length/120)===0),
+      model:'all-MiniLM-L6-v2 · LangChain retrieval',dimensions,preview:chunks.filter((_,i)=>i % Math.ceil(chunks.length/120)===0).map(({fullVector,...chunk})=>chunk),
       pdfUrl:URL.createObjectURL(file)};
   } finally { await pdf.destroy(); }
 }
-export function search(question, limit) {
-  const query = [...new Set(words(question).filter(word=>!stop.has(word)))];
-  const matches = chunks.map(chunk => {
-    const text = new Set(words(chunk.text));
-    return {...chunk,score:query.filter(word=>text.has(word)).length / Math.max(query.length,1)};
-  }).filter(chunk=>chunk.score>0).sort((a,b)=>b.score-a.score).slice(0,limit);
-  return {matches,point:[0,0],searched:chunks.length,score_type:'Term coverage',query_vector:[],dimensions:0};
+export async function search(question, limit) {
+  if (!retrieveChain || !chunks.length) throw Error('Index a textbook first.');
+  return retrieveChain.invoke({question, limit});
 }
 export function answer(result) {
   return {mode:'extractive',claims:result.matches.map(match=>({text:match.text,quote:match.text,

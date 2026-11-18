@@ -176,7 +176,7 @@ upload.addEventListener('submit', async event => {
     if (browserMode) {
       browserLibrary = await import('/browser-library.js');
       nextBook = await browserLibrary.index(file, data, (page, total) => {
-        $('index-status').textContent = 'Reading locally · page ' + page + ' / ' + total;
+        $('index-status').textContent = typeof page === 'string' ? page : 'Reading locally · page ' + page + ' / ' + total;
       });
     } else {
       nextBook = await request('/books', {method:'POST', body:data});
@@ -207,7 +207,7 @@ search.addEventListener('submit', async event => {
   locked.forEach(control => control.disabled = true);
   $('search-status').textContent = 'Ranking passages…';
   try {
-    result = browserMode ? browserLibrary.search(question, Number(data.get('limit'))) : await request('/books/' + book.id + '/search', {
+    result = browserMode ? await browserLibrary.search(question, Number(data.get('limit'))) : await request('/books/' + book.id + '/search', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body:JSON.stringify({question, limit:Number(data.get('limit'))}),
     });
@@ -234,8 +234,7 @@ search.addEventListener('submit', async event => {
     $('matches').replaceChildren(...matches.map(match => sourceCard(match, match.text,
       result.score_type + ' ' + match.score.toFixed(4), 'search-plot-' + match.id)));
     $('context').replaceChildren(...matches.map(match => sourceCard(match, match.excerpt, 'Retrieved context')));
-    if (browserMode) $('search-plot').textContent = 'Keyword search ranks term coverage. No embedding vectors are computed in this mode.';
-    else drawPlot($('search-plot'), matches, {x:point[0], y:point[1]});
+    drawPlot($('search-plot'), matches, {x:point[0], y:point[1]});
     $('answer').textContent = 'Select Build answer to assemble the cited passages.';
     $('generate').disabled = false;
     $('open-answer').hidden = false;
@@ -328,7 +327,9 @@ function showBook(nextBook) {
     $('open-vectors').hidden = false;
     $('book-info').textContent = book.name + ' · ' + coverage;
     const details = element('details', '');
-    details.append(element('summary', 'Embedding details'), element('p', book.model.includes('all-minilm')
+    details.append(element('summary', 'Embedding details'), element('p', book.model.includes('LangChain')
+      ? 'Transformers.js runs the quantized all-MiniLM-L6-v2 model in this browser. LangChain ranks normalized passage and query vectors using cosine similarity.'
+      : book.model.includes('all-minilm')
       ? 'Ollama encodes chunks with all-minilm and handles tokenization internally.'
       : 'The local index uses TF-IDF tokenization and latent dimensions when available.'));
     $('model').replaceChildren(element('strong', 'Index ready · ' + book.model),
@@ -339,9 +340,7 @@ function showBook(nextBook) {
       chunk.text.length + ' characters · ' + book.dimensions + ' dimensions · '
       + '[' + chunk.vector.map(value => value.toFixed(4)).join(', ')
       + (book.dimensions > chunk.vector.length ? ', …' : '') + ']', 'embedding-plot-' + chunk.id)));
-    if (browserMode) {
-      $('embedding-plot').textContent = 'Browser keyword search uses the extracted text. Local semantic embeddings are available in the Python app.';
-    } else drawPlot($('embedding-plot'), book.preview);
+    drawPlot($('embedding-plot'), book.preview);
 
 }
 async function refreshLibrary() {
