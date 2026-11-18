@@ -54,7 +54,6 @@ request('/capabilities').then(({hosted, large_uploads}) => {
   browserMode = true;
   $('upload-limit').textContent = 'Text PDFs up to ' + '500 MB, processed on this device' + ' · Indexes are temporary';
   upload.elements.hybrid.disabled = false;
-  upload.elements.strategy.querySelector('[value=parent-child]').disabled = true;
   $('answer-mode').value = 'extractive';
   const generated = $('answer-mode').querySelector('[value=generated]');
   generated.disabled = true;

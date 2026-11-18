@@ -31,7 +31,15 @@ async function loadModels(progress) {
         const lexical = [...terms].filter(term=>passage.has(term)).length / Math.max(terms.size,1);
         return {...chunk,score:hybrid ? .8*cosine+.2*lexical : cosine};
       }).sort((a,b)=>b.score-a.score).slice(0,limit).map(({fullVector,...chunk})=>chunk);
-      return {matches, point:vector.slice(0,2), searched:chunks.length,
+      const unique = [];
+      const seenParents = new Set();
+      for (const match of matches) {
+        const key = match.parent || 'chunk:' + match.id;
+        if (seenParents.has(key)) continue;
+        seenParents.add(key);
+        unique.push(match);
+      }
+      return {matches:unique, point:vector.slice(0,2), searched:chunks.length,
         score_type:hybrid ? 'Hybrid score' : 'Cosine similarity', query_vector:vector.slice(0,8), dimensions};
     });
   }
@@ -63,7 +71,15 @@ export async function index(file, settings, progress) {
           }
         }
         const passage = text.slice(start, end);
-        next.push({id:next.length+1,page,text:passage,excerpt:passage,vector:[],x:page,y:next.length});
+        let excerpt = passage;
+        let parent = null;
+        if (settings.get('strategy') === 'parent-child') {
+          const parentSize = size * 3;
+          const parentStart = Math.floor(start / parentSize) * parentSize;
+          excerpt = text.slice(parentStart, Math.min(text.length, Math.max(parentStart + parentSize, end)));
+          parent = page + ':' + parentStart;
+        }
+        next.push({id:next.length+1,page,text:passage,excerpt,parent,vector:[],x:page,y:next.length});
         if (next.length > 100000) throw Error('Too many passages. Increase chunk size.');
         if (end === text.length) break;
         start = end - overlap;
