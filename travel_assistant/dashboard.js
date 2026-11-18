@@ -172,7 +172,7 @@ upload.addEventListener('submit', async event => {
   try {
     let nextBook;
     if (browserMode) {
-      browserLibrary = await import('/browser-library.js?v=answer-sheet-v3');
+      browserLibrary = await import('/browser-library.js?v=evidence-ids-v4');
       nextBook = await browserLibrary.index(file, data, (page, total) => {
         $('index-status').textContent = typeof page === 'string' ? page : 'Reading locally · page ' + page + ' / ' + total;
       });
@@ -265,9 +265,9 @@ $('generate').onclick = async () => {
       body: JSON.stringify({question: result.question, limit: result.limit, mode: $('answer-mode').value, temperature: Number($('temperature').value), max_tokens: Number($('max-tokens').value)}),
     });
     if (!data.claims.length) {
-      output.textContent = data.generation_unverified
+      output.textContent = data.limitation || (data.generation_unverified
         ? 'The model could not verify an explanation from these matches. Review the retrieved passages in Semantic Search.'
-        : 'There is insufficient textbook evidence to answer this question.';
+        : 'There is insufficient textbook evidence to answer this question.');
       return;
     }
     output.classList.add('ready');
@@ -312,6 +312,7 @@ $('generate').onclick = async () => {
       output.append(element('div', 'Question terms absent from the supporting quotes: '
         + data.unmatched_terms.join(', ') + '.', 'coverage'));
     }
+    if (data.limitation) output.append(element('p', data.limitation, 'coverage'));
     proof.append(element('li', 'Verified ' + data.claims.length + ' exact textbook quotes'
       + (data.mode === 'generated' && data.support_check !== 'citations-only' ? ' and checked claim support with the local model.' : '.'), 'complete'));
   } catch (error) {
@@ -374,7 +375,7 @@ $('check-ollama').onclick = async () => {
   button.disabled = true;
   $('ollama-status').textContent = 'Checking local Ollama and Nemotron…';
   try {
-    browserLibrary ||= await import('/browser-library.js?v=answer-sheet-v3');
+    browserLibrary ||= await import('/browser-library.js?v=evidence-ids-v4');
     const model = await browserLibrary.checkOllama();
     $('answer-mode').querySelector('[value=generated]').disabled = false;
     $('answer-mode').value = 'generated';
