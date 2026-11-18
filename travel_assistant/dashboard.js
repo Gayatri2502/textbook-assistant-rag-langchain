@@ -55,6 +55,7 @@ request('/capabilities').then(({hosted, large_uploads}) => {
   $('upload-limit').textContent = 'Text PDFs up to ' + '500 MB, processed on this device' + ' · Indexes are temporary';
   upload.elements.hybrid.checked = false;
   upload.elements.hybrid.disabled = true;
+  upload.elements.strategy.querySelector('[value=parent-child]').disabled = true;
   $('answer-mode').value = 'extractive';
   const generated = $('answer-mode').querySelector('[value=generated]');
   generated.disabled = true;
@@ -233,7 +234,8 @@ search.addEventListener('submit', async event => {
     $('matches').replaceChildren(...matches.map(match => sourceCard(match, match.text,
       result.score_type + ' ' + match.score.toFixed(4), 'search-plot-' + match.id)));
     $('context').replaceChildren(...matches.map(match => sourceCard(match, match.excerpt, 'Retrieved context')));
-    drawPlot($('search-plot'), matches, {x:point[0], y:point[1]});
+    if (browserMode) $('search-plot').textContent = 'Keyword search ranks term coverage. No embedding vectors are computed in this mode.';
+    else drawPlot($('search-plot'), matches, {x:point[0], y:point[1]});
     $('answer').textContent = 'Select Build answer to assemble the cited passages.';
     $('generate').disabled = false;
     $('open-answer').hidden = false;
@@ -337,7 +339,9 @@ function showBook(nextBook) {
       chunk.text.length + ' characters · ' + book.dimensions + ' dimensions · '
       + '[' + chunk.vector.map(value => value.toFixed(4)).join(', ')
       + (book.dimensions > chunk.vector.length ? ', …' : '') + ']', 'embedding-plot-' + chunk.id)));
-    drawPlot($('embedding-plot'), book.preview);
+    if (browserMode) {
+      $('embedding-plot').textContent = 'Browser keyword search uses the extracted text. Local semantic embeddings are available in the Python app.';
+    } else drawPlot($('embedding-plot'), book.preview);
 
 }
 async function refreshLibrary() {

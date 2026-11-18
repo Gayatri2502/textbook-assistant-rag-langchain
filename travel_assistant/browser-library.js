@@ -18,8 +18,14 @@ export async function index(file, settings, progress) {
       for (let start = 0; start < text.length;) {
         let end = Math.min(start + size, text.length);
         if (settings.get('strategy') !== 'fixed' && end < text.length) {
-          const boundary = text.lastIndexOf(' ', end);
-          if (boundary > start + Math.max(overlap, size / 2)) end = boundary + 1;
+          const separators = settings.get('separators').split('|').filter(Boolean).map(value => value.replaceAll('\\n', '\n'));
+          for (const separator of separators) {
+            const boundary = text.lastIndexOf(separator, end - separator.length);
+            if (boundary > start + Math.max(overlap, size / 2)) {
+              end = boundary + separator.length;
+              break;
+            }
+          }
         }
         const passage = text.slice(start, end);
         next.push({id:next.length+1,page,text:passage,excerpt:passage,vector:[],x:page,y:next.length});
