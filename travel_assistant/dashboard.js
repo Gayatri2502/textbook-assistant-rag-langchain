@@ -259,7 +259,9 @@ $('generate').onclick = async () => {
   output.classList.remove('ready');
   output.textContent = 'Checking textbook evidence…';
   try {
-    const data = browserMode ? browserLibrary.answer(result) : await request('/books/' + book.id + '/answer', {
+    const data = browserMode ? ($('answer-mode').value === 'generated'
+      ? await browserLibrary.generate(result, Number($('temperature').value), Number($('max-tokens').value))
+      : browserLibrary.answer(result)) : await request('/books/' + book.id + '/answer', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({question: result.question, limit: result.limit, mode: $('answer-mode').value, temperature: Number($('temperature').value), max_tokens: Number($('max-tokens').value)}),
@@ -275,7 +277,7 @@ $('generate').onclick = async () => {
     if (data.generation_unverified) {
       output.append(element('p', 'The model could not verify an explanation. Showing exact textbook sentences instead.', 'coverage'));
     }
-    if (data.mode === 'generated') output.append(element('h3', 'Textbook briefing · ' + data.model));
+    if (data.mode === 'generated') output.append(element('h3', data.title || 'Textbook briefing'));
     const panel = $('citation-evidence');
     panel.replaceChildren(element('h3', 'Highlighted textbook evidence'));
     panel.hidden = false;
@@ -309,7 +311,7 @@ $('generate').onclick = async () => {
         + data.unmatched_terms.join(', ') + '.', 'coverage'));
     }
     proof.append(element('li', 'Verified ' + data.claims.length + ' exact textbook quotes'
-      + (data.mode === 'generated' ? ' and checked claim support with the local model.' : '.'), 'complete'));
+      + (data.mode === 'generated' && data.support_check !== 'citations-only' ? ' and checked claim support with the local model.' : '.'), 'complete'));
   } catch (error) {
     output.textContent = error.message;
   } finally {
@@ -364,3 +366,19 @@ $('saved-books').onchange = async () => {
   }
 };
 refreshLibrary().catch(() => {});
+
+$('check-ollama').onclick = async () => {
+  const button = $('check-ollama');
+  button.disabled = true;
+  $('ollama-status').textContent = 'Checking local Ollama and Nemotron…';
+  try {
+    browserLibrary ||= await import('/browser-library.js');
+    const model = await browserLibrary.checkOllama();
+    $('answer-mode').querySelector('[value=generated]').disabled = false;
+    $('answer-mode').value = 'generated';
+    $('ollama-status').textContent = model + ' is ready. Generated explanations enabled.';
+  } catch (error) {
+    $('ollama-status').textContent = 'Could not enable local generation. ' + error.message
+      + ' Check that Ollama is running, the model is installed, and this site has local network permission.';
+  } finally { button.disabled = false; }
+};
