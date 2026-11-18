@@ -6,7 +6,8 @@ const search = $('search');
 const searchButton = search.querySelector('button');
 let book;
 let result;
-let largeUploads = false;
+let browserMode = false;
+let browserLibrary;
 let uploadLimit = 500 * 1024 * 1024;
 
 function selectStep() {
@@ -50,9 +51,8 @@ async function request(url, options) {
 
 request('/capabilities').then(({hosted, large_uploads}) => {
   if (!hosted) return;
-  largeUploads = large_uploads;
-  if (!largeUploads) uploadLimit = 4_000_000;
-  $('upload-limit').textContent = 'Text PDFs up to ' + (largeUploads ? '500 MB' : '4 MB') + ' · Indexes are temporary';
+  browserMode = true;
+  $('upload-limit').textContent = 'Text PDFs up to ' + '500 MB, processed on this device' + ' · Indexes are temporary';
   upload.elements.hybrid.checked = false;
   upload.elements.hybrid.disabled = true;
   $('answer-mode').value = 'extractive';
@@ -171,43 +171,18 @@ upload.addEventListener('submit', async event => {
   $('generate').disabled = true;
   $('index-status').textContent = 'Uploading and indexing. Large books may take a few minutes.';
   try {
-    const direct = largeUploads && file.size > 4_000_000;
-    if (direct) {
-      const {put} = await import('/blob-client.js');
-      const grant = await request('/upload-grant', {method:'POST'});
-      await put(grant.path, file, {
-        token: grant.token, access:'private', multipart:true, contentType:'application/pdf',
-        onUploadProgress: ({percentage}) => {
-          $('index-status').textContent = 'Uploading PDF · ' + Math.round(percentage) + '%';
-        },
+    let nextBook;
+    if (browserMode) {
+      browserLibrary = await import('/browser-library.js');
+      nextBook = await browserLibrary.index(file, data, (page, total) => {
+        $('index-status').textContent = 'Reading locally · page ' + page + ' / ' + total;
       });
-      data.delete('file');
-      data.set('filename', file.name);
-      data.set('blob_path', grant.path);
-      $('index-status').textContent = 'Upload complete. Indexing PDF…';
+    } else {
+      nextBook = await request('/books', {method:'POST', body:data});
     }
-    const nextBook = await request('/books', {method:'POST', body:data});
     if (book?.pdfUrl) URL.revokeObjectURL(book.pdfUrl);
-    if (direct) nextBook.pdfUrl = URL.createObjectURL(file);
-    book = nextBook;
-    resetSearch();
-    const coverage = book.textPages + ' of ' + book.pages + ' PDF pages contained selectable text.';
-    $('index-status').textContent = 'Index ready. ' + coverage;
-    $('open-vectors').hidden = false;
-    $('book-info').textContent = book.name + ' · ' + coverage;
-    const details = element('details', '');
-    details.append(element('summary', 'Embedding details'), element('p', book.model.includes('all-minilm')
-      ? 'Ollama encodes chunks with all-minilm and handles tokenization internally.'
-      : 'The local index uses TF-IDF tokenization and latent dimensions when available.'));
-    $('model').replaceChildren(element('strong', 'Index ready · ' + book.model),
-      element('p', book.dimensions + ' dimensions · ' + book.chunkCount + ' indexed chunks'), details);
-    $('chunks').replaceChildren(element('p', 'Showing ' + book.preview.length + ' of ' + book.chunkCount + ' chunks.'),
-      ...book.preview.map(chunk => sourceCard(chunk, chunk.text, chunk.text.length + ' characters')));
-    $('vectors').replaceChildren(...book.preview.map(chunk => sourceCard(chunk, chunk.text,
-      chunk.text.length + ' characters · ' + book.dimensions + ' dimensions · '
-      + '[' + chunk.vector.map(value => value.toFixed(4)).join(', ')
-      + (book.dimensions > chunk.vector.length ? ', …' : '') + ']', 'embedding-plot-' + chunk.id)));
-    drawPlot($('embedding-plot'), book.preview);
+    showBook(nextBook);
+    if (!browserMode) refreshLibrary();
   } catch (error) {
     $('index-status').textContent = error.message + (book ? ' Still using “' + book.name + '”.' : '');
   } finally {
@@ -231,7 +206,7 @@ search.addEventListener('submit', async event => {
   locked.forEach(control => control.disabled = true);
   $('search-status').textContent = 'Ranking passages…';
   try {
-    result = await request('/books/' + book.id + '/search', {
+    result = browserMode ? browserLibrary.search(question, Number(data.get('limit'))) : await request('/books/' + book.id + '/search', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body:JSON.stringify({question, limit:Number(data.get('limit'))}),
     });
@@ -283,7 +258,7 @@ $('generate').onclick = async () => {
   output.classList.remove('ready');
   output.textContent = 'Checking textbook evidence…';
   try {
-    const data = await request('/books/' + book.id + '/answer', {
+    const data = browserMode ? browserLibrary.answer(result) : await request('/books/' + book.id + '/answer', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({question: result.question, limit: result.limit, mode: $('answer-mode').value, temperature: Number($('temperature').value), max_tokens: Number($('max-tokens').value)}),
@@ -341,3 +316,48 @@ $('generate').onclick = async () => {
     controls.forEach(control => control.disabled = false);
   }
 };
+
+function showBook(nextBook) {
+  book = nextBook;
+
+    resetSearch();
+    const coverage = book.textPages + ' of ' + book.pages + ' PDF pages contained selectable text.';
+    $('index-status').textContent = 'Index ready. ' + coverage;
+    $('open-vectors').hidden = false;
+    $('book-info').textContent = book.name + ' · ' + coverage;
+    const details = element('details', '');
+    details.append(element('summary', 'Embedding details'), element('p', book.model.includes('all-minilm')
+      ? 'Ollama encodes chunks with all-minilm and handles tokenization internally.'
+      : 'The local index uses TF-IDF tokenization and latent dimensions when available.'));
+    $('model').replaceChildren(element('strong', 'Index ready · ' + book.model),
+      element('p', book.dimensions + ' dimensions · ' + book.chunkCount + ' indexed chunks'), details);
+    $('chunks').replaceChildren(element('p', 'Showing ' + book.preview.length + ' of ' + book.chunkCount + ' chunks.'),
+      ...book.preview.map(chunk => sourceCard(chunk, chunk.text, chunk.text.length + ' characters')));
+    $('vectors').replaceChildren(...book.preview.map(chunk => sourceCard(chunk, chunk.text,
+      chunk.text.length + ' characters · ' + book.dimensions + ' dimensions · '
+      + '[' + chunk.vector.map(value => value.toFixed(4)).join(', ')
+      + (book.dimensions > chunk.vector.length ? ', …' : '') + ']', 'embedding-plot-' + chunk.id)));
+    drawPlot($('embedding-plot'), book.preview);
+
+}
+async function refreshLibrary() {
+  const saved = await request('/library');
+  $('saved-books').replaceChildren(element('option', 'Choose a saved textbook'),
+    ...saved.map(item => {
+      const option = element('option', item.name);
+      option.value = item.id;
+      return option;
+    }));
+  $('library-label').hidden = !saved.length;
+}
+$('saved-books').onchange = async () => {
+  const id = $('saved-books').value;
+  if (!id) return;
+  try {
+    showBook(await request('/books/' + id));
+    searchButton.disabled = false;
+  } catch (error) {
+    $('index-status').textContent = error.message;
+  }
+};
+refreshLibrary().catch(() => {});

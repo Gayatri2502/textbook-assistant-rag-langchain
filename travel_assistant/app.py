@@ -6,7 +6,7 @@ from tempfile import TemporaryDirectory
 from threading import Lock
 from uuid import uuid4
 from typing import Literal
-from . import blob_upload
+import pickle
 from .answers import DEFAULT_ANSWER_TEMPERATURE, MAX_ANSWER_TOKENS, answer_question
 from .retrieval import MODEL, embed, hybrid_scores
 import re
@@ -23,7 +23,9 @@ import numpy as np
 app = FastAPI(title="Textbook RAG")
 assets = Path(__file__).parent
 HOSTED = os.getenv("VERCEL") == "1"
-storage = TemporaryDirectory(prefix="textbook-rag-")
+storage = TemporaryDirectory(prefix="textbook-rag-") if HOSTED else None
+library = Path(storage.name) if HOSTED else Path(os.getenv("TEXTBOOK_LIBRARY", str(assets.parent / ".textbooks")))
+library.mkdir(parents=True, exist_ok=True)
 books = OrderedDict()
 lock = Lock()
 MAX_BYTES = 500 * 1024 * 1024
@@ -154,6 +156,11 @@ class Question(BaseModel):
 
 def get_book(book_id):
     with lock:
+        if not re.fullmatch(r"[0-9a-f]{32}", book_id):
+            raise HTTPException(404, "Book not found.")
+        if book_id not in books and not HOSTED and (library / (book_id + ".index")).exists():
+            with (library / (book_id + ".index")).open("rb") as saved:
+                books[book_id] = pickle.load(saved)
         if book_id not in books:
             raise HTTPException(404, "This index expired. Upload the PDF again.")
         books.move_to_end(book_id)
@@ -181,52 +188,49 @@ def health():
     return {"status": "ok"}
 
 
-@app.get("/blob-client.js")
-def blob_client():
-    return FileResponse(assets / "blob-client.js", media_type="text/javascript")
-
-
-@app.post("/upload-grant")
-def upload_grant():
-    if not HOSTED or not blob_upload.token():
-        raise HTTPException(503, "Large uploads are unavailable.")
-    return blob_upload.new_upload(MAX_BYTES)
+@app.get("/browser-library.js")
+def browser_library():
+    return FileResponse(assets / "browser-library.js", media_type="text/javascript")
 
 
 @app.get("/capabilities")
 def capabilities():
-    return {"hosted": HOSTED, "large_uploads": HOSTED and bool(blob_upload.token())}
+    return {"hosted": HOSTED, "large_uploads": False}
+
+
+@app.get("/library")
+def list_library():
+    if HOSTED:
+        return []
+    import json
+    return [json.loads(path.read_text()) for path in library.glob("*.json")]
 
 
 @app.post("/books")
 def upload(file: UploadFile | None = File(None), size: int = Form(700, ge=150, le=3500),
            overlap: int = Form(80, ge=0, le=500), strategy: str = Form("recursive"),
-           hybrid: bool = Form(False), blob_path: str | None = Form(None),
-           filename: str | None = Form(None), separators: str = Form(r"\n\n|\n| ")):
-    if (file is None) == (blob_path is None):
-        raise HTTPException(422, "Choose one PDF to upload.")
-    if blob_path and (not HOSTED or not blob_upload.token()
-                      or not re.fullmatch(r"textbooks/[0-9a-f]{32}\.pdf", blob_path)):
-        raise HTTPException(422, "Invalid private PDF upload.")
+           hybrid: bool = Form(False), separators: str = Form(r"\n\n|\n| ")):
+    if file is None:
+        raise HTTPException(422, "Choose a PDF.")
     if HOSTED and hybrid:
         raise HTTPException(422, "Hybrid search requires the local Ollama installation.")
     if overlap >= size or strategy not in {"recursive", "fixed", "parent-child"}:
         raise HTTPException(422, "Choose an overlap smaller than the chunk size.")
     boundaries = [separator.replace(r"\n", "\n") for separator in separators[:200].split("|") if separator]
     book_id = uuid4().hex
-    path = Path(storage.name) / f"{book_id}.pdf"
+    path = library / f"{book_id}.pdf"
     try:
         total = 0
-        source = blob_upload.open_pdf(blob_path) if blob_path else file.file
+        source = file.file
         with source, path.open("wb") as output:
             for block in iter(lambda: source.read(1024 * 1024), b""):
                 if total == 0 and b"%PDF-" not in block[:1024]:
                     raise ValueError("Upload a valid PDF document.")
                 total += len(block)
-                if total > (4_000_000 if HOSTED and not blob_path else MAX_BYTES):
+                if total > (4_000_000 if HOSTED else MAX_BYTES):
                     raise ValueError("The PDF exceeds the upload limit.")
                 output.write(block)
-        book = Book(path, Path((filename if blob_path else file.filename) or "Textbook.pdf").name, size, overlap, strategy, boundaries, hybrid)
+        book = Book(path, Path(file.filename or "Textbook.pdf").name, size, overlap, strategy, boundaries, hybrid)
     except (OSError, KeyError) as error:
         path.unlink(missing_ok=True)
         if hybrid:
@@ -237,19 +241,34 @@ def upload(file: UploadFile | None = File(None), size: int = Form(700, ge=150, l
         message = str(error) if isinstance(error, ValueError) else "The PDF could not be read."
         raise HTTPException(422, message) from error
 
-    if blob_path:
-        path.unlink()
+    if not HOSTED:
+        import json
+        temporary = library / (book_id + ".index.tmp")
+        with temporary.open("wb") as saved:
+            pickle.dump(book, saved)
+        temporary.replace(library / (book_id + ".index"))
+        (library / (book_id + ".json")).write_text(json.dumps({"id": book_id, "name": book.name}))
 
     with lock:
         books[book_id] = book
         if len(books) > 8:
             _, evicted = books.popitem(last=False)
-            evicted.path.unlink(missing_ok=True)
+            if HOSTED:
+                evicted.path.unlink(missing_ok=True)
+    return book_details(book_id, book)
+
+
+def book_details(book_id, book):
     return {"id": book_id, "name": book.name, "pages": book.pages, "textPages": book.text_pages,
-            "chunkCount": len(book.chunks), "model": MODEL + " + TF-IDF" if hybrid else ("TF-IDF + latent semantic analysis" if book.model else "TF-IDF"),
-            "dimensions": book.embeddings.shape[1] if hybrid else (book.vectors.shape[1] if book.model else book.matrix.shape[1]),
+            "chunkCount": len(book.chunks), "model": MODEL + " + TF-IDF" if book.embeddings is not None else ("TF-IDF + latent semantic analysis" if book.model else "TF-IDF"),
+            "dimensions": book.embeddings.shape[1] if book.embeddings is not None else (book.vectors.shape[1] if book.model else book.matrix.shape[1]),
             "preview": [book.preview(index) for index in np.linspace(
                 0, len(book.chunks) - 1, min(120, len(book.chunks)), dtype=int)]}
+
+
+@app.get("/books/{book_id}")
+def saved_book(book_id: str):
+    return book_details(book_id, get_book(book_id))
 
 
 @app.get("/books/{book_id}/pdf")

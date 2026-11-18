@@ -12,7 +12,7 @@
 </nav>
 <section class="panel" id="text-splitting">
 <h2>Text Splitting</h2><p>Split the book into searchable chunks while keeping each chunk tied to its PDF page.</p>
-<form id="upload">
+<label id="library-label" hidden>Saved local textbooks<select id="saved-books"><option value="">Choose a saved textbook</option></select></label><form id="upload">
 <label class="upload">Textbook PDF<input type="file" name="file" accept=".pdf,application/pdf" required><small id="upload-limit">Selectable text required · Up to 500 MB and 5,000 pages</small></label>
 <div class="controls">
 <label>Strategy<select name="strategy"><option value="recursive">Recursive Character</option><option value="fixed">Fixed Character</option><option value="parent-child">Parent–Child</option></select></label>
