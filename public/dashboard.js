@@ -172,7 +172,7 @@ upload.addEventListener('submit', async event => {
   try {
     let nextBook;
     if (browserMode) {
-      browserLibrary = await import('/browser-library.js?v=textbook-v2');
+      browserLibrary = await import('/browser-library.js?v=answer-sheet-v3');
       nextBook = await browserLibrary.index(file, data, (page, total) => {
         $('index-status').textContent = typeof page === 'string' ? page : 'Reading locally · page ' + page + ' / ' + total;
       });
@@ -275,7 +275,7 @@ $('generate').onclick = async () => {
     if (data.generation_unverified) {
       output.append(element('p', 'The model could not verify an explanation. Showing exact textbook sentences instead.', 'coverage'));
     }
-    if (data.mode === 'generated') output.append(element('h3', data.title || 'Textbook briefing'));
+    if (data.mode === 'generated') output.append(element('h3', (data.title || result.question).toUpperCase(), 'answer-title'));
     const panel = $('citation-evidence');
     panel.replaceChildren(element('h3', 'Highlighted textbook evidence'));
     panel.hidden = false;
@@ -285,7 +285,11 @@ $('generate').onclick = async () => {
         output.append(element('h4', claim.heading, 'answer-heading'));
         previousHeading = claim.heading;
       }
-      const paragraph = element('p', claim.text, 'answer-paragraph');
+      const paragraph = element('p', '', 'answer-paragraph answer-' + (['point','flow','takeaway'].includes(claim.kind) ? claim.kind : 'paragraph'));
+      if (typeof claim.lead === 'string' && claim.lead.trim()) {
+        paragraph.append(element('strong', claim.lead.trim() + ' — '));
+      }
+      paragraph.append(claim.text);
       const citation = element('button', '[' + (index + 1) + ']', 'citation inline-citation');
       citation.type = 'button';
       citation.setAttribute('aria-label', 'Show citation ' + (index + 1) + ' on PDF page ' + claim.page);
@@ -370,7 +374,7 @@ $('check-ollama').onclick = async () => {
   button.disabled = true;
   $('ollama-status').textContent = 'Checking local Ollama and Nemotron…';
   try {
-    browserLibrary ||= await import('/browser-library.js?v=textbook-v2');
+    browserLibrary ||= await import('/browser-library.js?v=answer-sheet-v3');
     const model = await browserLibrary.checkOllama();
     $('answer-mode').querySelector('[value=generated]').disabled = false;
     $('answer-mode').value = 'generated';
