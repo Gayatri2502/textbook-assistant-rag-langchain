@@ -6,6 +6,92 @@ The application focuses on medical textbooks, but its retrieval pipeline accepts
 
 **[Open the application](https://textbook-assistant-rag-langchain.vercel.app/)** · **[Source repository](https://github.com/Gayatri2502/textbook-assistant-rag-langchain)**
 
+## First, what are RAG and LangChain?
+
+### RAG — Retrieval-Augmented Generation
+
+RAG is a method for answering questions using reference material supplied at question time. In this project, that reference material is the student's textbook.
+
+The method has three connected operations:
+
+1. **Retrieve** relevant passages from the indexed book.
+2. **Augment** the model's input with those passages and the student's question.
+3. **Generate** an explanation using that evidence, with references back to the source.
+
+For example, suppose a book says that reference copies stay in a library so visitors can consult them. A student asks why the library keeps those copies. Retrieval selects that passage, the answer prompt includes it, and generation explains its purpose. The student can then check the cited passage.
+
+Indexing prepares the book before a question is asked. It extracts text, splits it into chunks, and converts chunks into numerical representations called embeddings. At search time, the same embedding model converts the question into a vector. Comparing question and passage vectors helps find related wording.
+
+The generative model's weights remain unchanged during this workflow. The textbook is provided as answer context. This makes the approach suitable for adding a new book without fine-tuning a language model.
+
+The **Exact textbook sentences** option exposes retrieval results as an extractive answer. The full RAG generation path runs when **Generated explanation** sends the retrieved evidence to Nemotron.
+
+### LangChain — orchestration around model and retrieval operations
+
+LangChain is a framework for composing operations such as retrieval, prompt construction, and model calls into callable workflows. A runnable accepts an input, performs an operation, and returns an output.
+
+In this project's browser implementation, a bundled LangChain Core `RunnableLambda` receives the question and match limit. Its implementation:
+
+1. Encodes the question with MiniLM.
+2. Compares the question vector with the indexed chunk vectors.
+3. Optionally combines semantic similarity with keyword overlap.
+4. Returns ranked passages, scores, vector previews, and source metadata.
+
+The application calls that runnable through `invoke`. The surrounding PDF processing, answer prompt, Ollama request, evidence validation, and interface are implemented directly in application code.
+
+### How RAG and LangChain work together here
+
+| Concept | Implementation |
+| --- | --- |
+| Knowledge source | Student-selected textbook PDF |
+| Index preparation | PDF extraction, page-aware chunking, passage embeddings |
+| Retriever | LangChain runnable wrapping in-memory similarity ranking in the browser |
+| Retrieved context | Highest-ranked child passages or their parent context |
+| Answer prompt | Study-answer instructions plus the question and numbered evidence |
+| Generator | Local Ollama running `nemotron-3-nano:4b` |
+| Citation resolver | Application maps selected evidence IDs to exact original text and PDF pages |
+| Evidence interface | Highlighted source cards and original-page links |
+
+The browser uses an in-memory vector collection. No Pinecone account or hosted vector database is required. The Python implementation has its own local indexing and retrieval path, documented below.
+
+## Screenshot walkthrough
+
+These are actual screenshots of the hosted application, captured with a small, synthetic one-page library-policy PDF. The example keeps the evidence easy to inspect and avoids reproducing textbook content. It demonstrates the interface and data flow. The final screenshot shows **extractive mode**.
+
+### 1. Text Splitting — prepare the source
+
+![Text Splitting with an indexed example PDF](docs/screenshots/01-text-splitting.png)
+
+Select a PDF and configure the strategy, chunk size, overlap, separators, and hybrid setting. The result shows extracted chunks with character counts and page links. Page provenance is retained as the text is prepared for retrieval.
+
+In the screenshot, the source fits in one chunk. Larger books produce many chunks. The application reports extraction and embedding progress as separate processing stages.
+
+### 2. Vector Embedding — inspect the index
+
+![Vector Embedding with a real 384-dimensional MiniLM vector](docs/screenshots/02-vector-embedding.png)
+
+This page displays the active model, full dimension count, sampled chunk text, character counts, and the first eight coordinates of each vector. The screenshot shows a computed **384-dimensional** MiniLM embedding.
+
+The dot in the right-hand grid corresponds to the example chunk. X and Y show its first two coordinates. Selecting the point focuses the matching chunk card. The full vector is used for retrieval, while the plotted pair provides an inspectable preview.
+
+### 3. Semantic Search — find question-relevant evidence
+
+![Semantic Search with a question vector, retrieved passage, score, and plot](docs/screenshots/03-semantic-search.png)
+
+Enter a question and the number of matches to retrieve. The page displays the question vector preview, dimension count, ranked results, similarity scores, and the relationship between the question and selected chunks.
+
+In this example, the question uses different wording from the source. The retrieved passage appears with its score and a PDF page link. The plot connects the question point with the passage point.
+
+### 4. Context Generation — answer and check the evidence
+
+![Context Generation in extractive mode with highlighted source evidence](docs/screenshots/04-context-generation.png)
+
+This page assembles the answer and displays the evidence beside it. Inline citation buttons focus the corresponding highlighted passage. Original PDF links let the student inspect the source page.
+
+The screenshot uses **Exact textbook sentences**, so the displayed answer is a direct excerpt. For a structured explanation, use **Check local setup** to enable Nemotron, then select **Generated explanation**.
+
+The generated path supplies evidence IDs to the model, resolves the returned IDs back to source passages, and renders the title, sections, answer points, and citations. Temperature and maximum tokens affect generation. The search-proof panel records the retrieval and citation steps.
+
 ## What a student does
 
 1. Open **Text Splitting**, select a PDF, and choose the passage size, overlap, and splitting strategy.
