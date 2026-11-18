@@ -20,7 +20,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import normalize
 import numpy as np
 
-app = FastAPI(title="Textbook RAG")
+app = FastAPI(title="TextBook Assistant RAG + LangChain")
 assets = Path(__file__).parent
 HOSTED = os.getenv("VERCEL") == "1"
 storage = TemporaryDirectory(prefix="textbook-rag-") if HOSTED else None

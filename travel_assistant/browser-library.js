@@ -2,6 +2,7 @@ let chunks = [];
 let encoder;
 let retrieveChain;
 let dimensions = 0;
+let hybrid = false;
 let device = 'wasm';
 async function loadModels(progress) {
   if (!encoder) {
@@ -23,11 +24,15 @@ async function loadModels(progress) {
     retrieveChain = RunnableLambda.from(async ({question, limit}) => {
       const tensor = await encoder(question, {pooling:'mean', normalize:true});
       const vector = tensor.tolist()[0];
-      const matches = chunks.map(chunk => ({
-        ...chunk, score:chunk.fullVector.reduce((sum,value,i)=>sum+value*vector[i],0),
-      })).sort((a,b)=>b.score-a.score).slice(0,limit).map(({fullVector,...chunk})=>chunk);
+      const terms = new Set(question.toLowerCase().match(/[a-z]{3,}/g) || []);
+      const matches = chunks.map(chunk => {
+        const cosine = chunk.fullVector.reduce((sum,value,i)=>sum+value*vector[i],0);
+        const passage = new Set(chunk.text.toLowerCase().match(/[a-z]{3,}/g) || []);
+        const lexical = [...terms].filter(term=>passage.has(term)).length / Math.max(terms.size,1);
+        return {...chunk,score:hybrid ? .8*cosine+.2*lexical : cosine};
+      }).sort((a,b)=>b.score-a.score).slice(0,limit).map(({fullVector,...chunk})=>chunk);
       return {matches, point:vector.slice(0,2), searched:chunks.length,
-        score_type:'Cosine similarity', query_vector:vector.slice(0,8), dimensions};
+        score_type:hybrid ? 'Hybrid score' : 'Cosine similarity', query_vector:vector.slice(0,8), dimensions};
     });
   }
 }
@@ -83,6 +88,7 @@ export async function index(file, settings, progress) {
       await new Promise(resolve => setTimeout(resolve,0));
     }
     dimensions = next[0].fullVector.length;
+    hybrid = settings.get('hybrid') === 'true';
     chunks = next;
     return {id:'browser',name:file.name,pages:pdf.numPages,textPages,chunkCount:chunks.length,
       model:'all-MiniLM-L6-v2 · LangChain retrieval',dimensions,preview:chunks.filter((_,i)=>i % Math.ceil(chunks.length/120)===0).map(({fullVector,...chunk})=>chunk),

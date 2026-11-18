@@ -21,7 +21,7 @@ def test_rejects_invalid_pdf_and_unknown_indexes():
 def test_experiment_route_serves_textbook_workspace():
     response = TestClient(app).get("/experiment?step=semantic-search")
     assert response.status_code == 200
-    assert "Medical Textbook Playground" in response.text
+    assert "TextBook Assistant RAG + LangChain" in response.text
 
 
 def test_generated_claim_rejects_fabricated_quote_and_unverified_claim(monkeypatch):

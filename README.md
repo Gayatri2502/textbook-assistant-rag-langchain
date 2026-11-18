@@ -1,4 +1,4 @@
-# Medical Textbook Playground
+# TextBook Assistant RAG + LangChain
 
 Upload a text-based PDF, inspect its chunks and vectors, search for a study topic, and read an extractive answer with links to the original PDF pages.
 

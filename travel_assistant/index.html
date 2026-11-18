@@ -1,11 +1,11 @@
 <!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Textbook RAG · Study workspace</title><link rel="stylesheet" href="/dashboard.css"><script src="/dashboard.js" defer></script></head>
+<title>TextBook Assistant RAG + LangChain</title><link rel="stylesheet" href="/dashboard.css"><script src="/dashboard.js?v=textbook-v2" defer></script></head>
 <body>
-<header><div class="container brand"><span aria-hidden="true">✚</span> Textbook RAG</div></header>
+<header><div class="container brand"><span aria-hidden="true">✚</span> TextBook Assistant RAG + LangChain</div></header>
 <main class="container">
-<h1>Medical Textbook Playground</h1>
+<h1>TextBook Assistant RAG + LangChain</h1>
 <p class="intro">Upload a textbook, ask a study question, and verify the answer against the original pages.</p>
 <nav aria-label="Study pipeline">
 <a href="?step=text-splitting">Text Splitting</a><a href="?step=embedding">Vector Embedding</a><a href="?step=semantic-search">Semantic Search</a><a href="?step=generation">Context Generation</a>
@@ -45,7 +45,7 @@
 <details id="ollama-setup"><summary>Use local Nemotron for generated explanations</summary>
 <p>Your question and matched passages will be sent to Ollama on this device.</p>
 <button id="check-ollama" type="button">Check local setup</button><p id="ollama-status" role="status"></p>
-<p>Install the model with <code>ollama pull nemotron-3-nano:4b</code>. Allow this website using <code>OLLAMA_ORIGINS=https://ai-travel-assistant-lovat.vercel.app</code> when starting Ollama. Your browser may ask for local network access.</p></details>
+<p>Install the model with <code>ollama pull nemotron-3-nano:4b</code>. Allow this website using <code>OLLAMA_ORIGINS=https://textbook-assistant-rag-langchain.vercel.app</code> when starting Ollama. Your browser may ask for local network access.</p></details>
 <div class="columns"><div><h3>Answer &amp; citations</h3><div class="box" id="answer" aria-live="polite">Search a textbook first.</div></div>
 <aside><h3>Search proof</h3><div class="box"><ol id="proof"><li>Waiting for a textbook and question.</li></ol></div><div class="box" id="citation-evidence" tabindex="-1" hidden></div><details><summary>Retrieved passages preview</summary><p id="prompt-question"></p><div id="context"></div></details></aside></div>
 </section>

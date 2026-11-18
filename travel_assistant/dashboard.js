@@ -53,8 +53,7 @@ request('/capabilities').then(({hosted, large_uploads}) => {
   if (!hosted) return;
   browserMode = true;
   $('upload-limit').textContent = 'Text PDFs up to ' + '500 MB, processed on this device' + ' · Indexes are temporary';
-  upload.elements.hybrid.checked = false;
-  upload.elements.hybrid.disabled = true;
+  upload.elements.hybrid.disabled = false;
   upload.elements.strategy.querySelector('[value=parent-child]').disabled = true;
   $('answer-mode').value = 'extractive';
   const generated = $('answer-mode').querySelector('[value=generated]');
@@ -174,7 +173,7 @@ upload.addEventListener('submit', async event => {
   try {
     let nextBook;
     if (browserMode) {
-      browserLibrary = await import('/browser-library.js');
+      browserLibrary = await import('/browser-library.js?v=textbook-v2');
       nextBook = await browserLibrary.index(file, data, (page, total) => {
         $('index-status').textContent = typeof page === 'string' ? page : 'Reading locally · page ' + page + ' / ' + total;
       });
@@ -372,7 +371,7 @@ $('check-ollama').onclick = async () => {
   button.disabled = true;
   $('ollama-status').textContent = 'Checking local Ollama and Nemotron…';
   try {
-    browserLibrary ||= await import('/browser-library.js');
+    browserLibrary ||= await import('/browser-library.js?v=textbook-v2');
     const model = await browserLibrary.checkOllama();
     $('answer-mode').querySelector('[value=generated]').disabled = false;
     $('answer-mode').value = 'generated';
