@@ -464,3 +464,9 @@ Keep the matching files in `public/` synchronized when changing browser assets i
 FastAPI, Uvicorn, pypdf, scikit-learn, PDF.js, Transformers.js, MiniLM, LangChain Core, Ollama, and Nemotron.
 
 Bundled LangChain license information is included in `travel_assistant/langchain-LICENSE`. Consult upstream projects and model cards for their usage terms.
+
+### Local application
+
+![Textbook assistant before indexing a PDF](screenshot.jpg)
+
+This screenshot shows the locally running text-splitting interface before a textbook is indexed.
